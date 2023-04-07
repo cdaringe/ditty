@@ -8,7 +8,7 @@
       "name": "main - sysk",
       "type": "python",
       "request": "launch",
-      "module": "diddy.main",
+      "module": "ditty.main",
       "args": ["--mel", "--sysk-files"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",

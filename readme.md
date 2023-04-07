@@ -4,7 +4,7 @@
 
 - `pipenv install`
 - `pipenv shell`
-- `python -m diddy.main`
+- `python -m ditty.main`
 
 ...maybe?
 

@@ -2,7 +2,7 @@
 # import random
 # import torch
 # from torchaudio import transforms
-# from diddy.common import asset_filename
+# from ditty.common import asset_filename
 
 # class AudioFile():
 #   # ----------------------------
