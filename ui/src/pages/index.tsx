@@ -5,10 +5,9 @@ import React from "react";
 import H5AudioPlayer from "react-h5-audio-player";
 import ClassifyControls from "@/components/ClassifyControls";
 import {
-  AudioState,
   Classification,
+  MelMeta,
   parseSpectogramFilename,
-  useGetNextMel,
 } from "@/util/classify-workflow";
 
 type Props = {
@@ -22,32 +21,45 @@ function filenameToMp3Url(filename: string) {
   return url.toString();
 }
 
-function toClassifiedAudioUrl(
-  mp3Filename: string,
-  melBasename: string,
-  type: string
-) {
+function toClassifiedAudioUrl(mp3Filename: string, mel: MelMeta, type: string) {
   const url = new URL(window.location.href);
   url.pathname = "/api/sysk-classify";
   url.searchParams.append("mp3Filename", mp3Filename);
-  url.searchParams.append("melBasename", melBasename);
+  url.searchParams.append("melBasename", mel.basename);
   url.searchParams.append("classificationType", type);
   return url.toString();
 }
 
 const Home: NextPage<Props> = (props) => {
   const [isShowingClassified, setShowClassified] = React.useState(false);
+  const lastPlayTimeout = React.useRef(-1);
+  const [melIndex, setMelIndex] = React.useState(0);
   const [player, setPlayer] = React.useState<null | H5AudioPlayer>(null);
   const [playerAudio, setPlayerAudio] = React.useState<null | HTMLAudioElement>(
     null
   );
-  const [audioSrcUrl, setAudioSrcUrl] = React.useState<null | string>(null);
-  const getNextMel = useGetNextMel({ audio: props.audio, isShowingClassified });
-  const [selectedAudio, setSelectedAudio] = React.useState<null | AudioState>(
-    null
-  );
-  const melspectrogramFilename =
-    selectedAudio?.audio.melspectrogramsFilenames[selectedAudio.melIndex];
+  const [selectedAudio, setSelectedAudio] = React.useState<null | Audio>(null);
+  const mels = React.useMemo(() => {
+    const nextMels =
+      selectedAudio?.melspectrogramsFilenames.map((f) =>
+        parseSpectogramFilename(f)
+      ) || [];
+    setMelIndex(0);
+    return nextMels.filter((m) =>
+      isShowingClassified ? true : m.classification === "unknown"
+    );
+  }, [selectedAudio, isShowingClassified]);
+
+  const mel = mels[melIndex];
+  const onPlay = React.useCallback(() => {
+    if (!mel) return;
+    if (playerAudio) playerAudio.currentTime = mel.start_ms / 1000;
+    window.clearTimeout(lastPlayTimeout.current);
+    lastPlayTimeout.current = window.setTimeout(() => {
+      playerAudio?.pause();
+    }, mel.duration_ms);
+    console.debug(`playing ${lastPlayTimeout.current}`);
+  }, [mel, playerAudio]);
   React.useEffect(
     function pollForAudioEl() {
       if (!player) return;
@@ -61,81 +73,64 @@ const Home: NextPage<Props> = (props) => {
     [player]
   );
   React.useEffect(
-    function initFirstClip() {
-      setSelectedAudio(getNextMel());
-    },
-    [getNextMel]
-  );
-  React.useEffect(
     function setStartTime() {
-      if (!selectedAudio || !playerAudio) {
+      if (!mel || !playerAudio) {
         return;
       }
-      if (playerAudio && selectedAudio) {
-        const mel =
-          selectedAudio.audio.melspectrogramsFilenames[selectedAudio.melIndex];
-        const parsed = parseSpectogramFilename(mel);
-        playerAudio.currentTime = parsed.start_ms / 1000;
-        playerAudio.autoplay = true;
-        console.log(`indexing audio to mel ${playerAudio.currentTime}`);
-      }
+      playerAudio.currentTime = mel.start_ms / 1000;
+      playerAudio.autoplay = true;
+      playerAudio.play();
+      onPlay();
     },
-    [selectedAudio, playerAudio]
+    [mel, playerAudio, onPlay]
   );
   const onClassify = React.useCallback(
     (type: Classification) => {
-      if (!selectedAudio) throw new Error("biff city");
-      fetch(
-        toClassifiedAudioUrl(
-          selectedAudio.audio.filename,
-          selectedAudio.audio.melspectrogramsFilenames[selectedAudio.melIndex],
-          type
-        )
-      )
+      if (!selectedAudio || !mel) throw new Error("biff city");
+      fetch(toClassifiedAudioUrl(selectedAudio.filename, mel, type))
         .then(async (res) => {
           if (!res.ok) throw new Error(await res.text());
           return res;
         })
         .then(() => {
-          const nextMel = getNextMel();
-          if (nextMel) {
-            const fileparts = nextMel.audio.filename.split("/");
-            const base = fileparts[fileparts.length - 1];
-            console.info(
-              `${base.substr(-50, 50)}..., [${nextMel.melIndex + 1}/${
-                nextMel.audio.melspectrogramsFilenames.length
-              }]`
-            );
-          }
-          setSelectedAudio(nextMel);
+          mel.classification = type;
+          setMelIndex((last) => last + 1);
         });
     },
-    [selectedAudio, getNextMel]
+    [selectedAudio, mel]
   );
   React.useEffect(
-    function initFirstUrl() {
-      if (selectedAudio)
-        setAudioSrcUrl(filenameToMp3Url(selectedAudio.audio.filename));
+    function initFirstAudio() {
+      const firstAudio = props.audio[0];
+      if (firstAudio) setSelectedAudio(firstAudio);
+    },
+    [props.audio]
+  );
+  const [audioSrc, setAudioSrc] = React.useState<null | string>(null);
+  React.useEffect(
+    function loadAudio() {
+      if (!selectedAudio) return;
+      const nextAudioSrcUrl = filenameToMp3Url(selectedAudio.filename);
+      fetch(nextAudioSrcUrl)
+        .then((r) => r.blob())
+        .then((blob) => {
+          setAudioSrc(URL.createObjectURL(blob));
+        });
     },
     [selectedAudio]
   );
-  const audioSrcUrlRef = React.useRef("");
-  audioSrcUrlRef.current = audioSrcUrl || "";
-  const [audioSrc, setAudioSrc] = React.useState<null | string>(null);
-  React.useEffect(() => {
-    if (!audioSrcUrl) return;
-    fetch(audioSrcUrl)
-      .then((r) => r.blob())
-      .then((blob) => {
-        const a = audioSrcUrl;
-        const b = audioSrcUrlRef.current;
-        if (a !== b) {
-          console.warn(`URL changed, ignoring [${a}, ${b}]`);
-          return;
-        }
-        setAudioSrc(URL.createObjectURL(blob));
-      });
-  }, [audioSrcUrl]);
+  React.useEffect(
+    function dropPlayerReferenceOnMount() {
+      if (!mel) {
+        // allow playerAudio to GC and halt playing
+        // this condition must be sync'd with the player render/mount
+        // conditions :|
+        console.debug(`purging playerAudio`);
+        setPlayerAudio(null);
+      }
+    },
+    [audioSrc, mel]
+  );
   return (
     <>
       <Head>
@@ -145,20 +140,41 @@ const Home: NextPage<Props> = (props) => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <main className={""}>
-        {selectedAudio ? (
+        <select
+          onChange={(evt) => {
+            const i = parseInt(evt.currentTarget.value, 10);
+            const nextAudio = props.audio[i]!;
+            setSelectedAudio(nextAudio);
+          }}
+        >
+          {props.audio.map((a, i) => {
+            const isClassified = !a.melspectrogramsFilenames.find((f) =>
+              f.match(/_unknown/)
+            );
+            return (
+              <option key={i} value={i}>
+                {a.title} - {isClassified ? "classified" : "unclassified"}
+              </option>
+            );
+          })}
+        </select>
+        {selectedAudio && playerAudio ? (
           <dl>
             <dt>Title</dt>
-            <dd>{selectedAudio.audio.title}</dd>
-            <dt>#-melspectagrams</dt>
-            <dd>{selectedAudio.audio.melspectrogramsFilenames.length}</dd>
-            {melspectrogramFilename
+            <dd>{selectedAudio.title}</dd>
+            <dt># melspectagrams (rem)</dt>
+            <dd>{mels.length}</dd>
+            {mel
               ? (function ParsedFields() {
-                  const parsed = parseSpectogramFilename(
-                    melspectrogramFilename
-                  );
-                  const startS = parsed.start_ms / 1000;
-                  const endS = parsed.end_ms / 1000;
-                  const durationS = endS - startS;
+                  const { start_ms, end_ms, duration_ms } = mel;
+                  const startS = start_ms / 1000;
+                  const endS = end_ms / 1000;
+                  const durationS = duration_ms / 1000;
+                  // const clipPercCompleted =
+                  //   (playerAudio.currentTime - startS) / durationS;
+                  // const clipPercentVis = `[${[...new Array(100)].map((_, i) =>
+                  //   i / 100 < clipPercCompleted ? "=" : ""
+                  // )}] (${clipPercCompleted.toFixed(1)}%)`;
                   return (
                     <>
                       <dt>Range</dt>
@@ -166,7 +182,16 @@ const Home: NextPage<Props> = (props) => {
                         {startS} - {endS} ({durationS.toFixed(1)}s)
                       </dd>
                       <dt>Classification</dt>
-                      <dd>{parsed.classification}</dd>
+                      <dd>{mel.classification}</dd>
+
+                      {/* <dt>Clip Progress</dt>
+                      <dd>{clipPercentVis}</dd> */}
+
+                      <dt>MelDump</dt>
+                      <dd>
+                        {/* {melIndex} of {mels.length} */}
+                        <pre>{JSON.stringify(mel, null, 2)}</pre>
+                      </dd>
                     </>
                   );
                 })()
@@ -183,32 +208,37 @@ const Home: NextPage<Props> = (props) => {
         <label htmlFor="show_classified" defaultChecked={isShowingClassified}>
           Show classified?
         </label>
-        {audioSrc && selectedAudio && melspectrogramFilename ? (
+        {audioSrc && mel ? (
           <>
             <H5AudioPlayer
               autoPlay
+              showSkipControls
+              showJumpControls={false}
               ref={(player) => {
-                if (player) {
-                  console.log("player found");
-                  setPlayer(player);
-                } else {
-                  console.warn(`wtf no player?`);
-                }
+                // if (player) {
+                setPlayer(player);
+                // } else {
+                // console.warn(`no player?`);
+                // }
               }}
               src={audioSrc}
               showDownloadProgress
               showFilledProgress
-              onClickNext={(evt) => {
-                console.log(evt);
+              onClickNext={() => {
+                window.clearTimeout(lastPlayTimeout.current);
+                setMelIndex((i) => i + 1);
+              }}
+              onClickPrevious={() => {
+                window.clearTimeout(lastPlayTimeout.current);
+                setMelIndex((i) => (i > 0 ? i - 1 : 0));
+              }}
+              onPlay={(_) => {
+                onPlay();
               }}
               onError={console.error}
               onPlayError={console.error}
             />
-            <ClassifyControls
-              audio={selectedAudio.audio}
-              melspectrogramFilename={melspectrogramFilename}
-              onClassify={onClassify}
-            />
+            <ClassifyControls onClassify={onClassify} />
           </>
         ) : null}
       </main>

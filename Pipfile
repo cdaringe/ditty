@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+transformers = "*"
+datasets = "*"
+evaluate = "*"
+librosa = "*"
+torch = "*"
+matplotlib = "*"
+ipympl = "*"
+torchaudio = "*"
+jupyterlab = "*"
+dotmap = "*"
+numpy = "*"
+mypy = "*"
+
+[dev-packages]
+autopep8 = "*"
+
+[requires]
+python_version = "3.9"
+python_full_version = "3.9.16"

@@ -1,21 +1,27 @@
 import { Audio } from "@/util";
-import {
-  Classification,
-  isClassification,
-  parseSpectogramFilename,
-} from "@/util/classify-workflow";
+import { Classification, isClassification } from "@/util/classify-workflow";
 import React from "react";
 import { MouseEventHandler } from "react";
 
 type Props = {
-  audio: Audio;
-  melspectrogramFilename: string;
   onClassify: (type: Classification) => void;
 };
 
 const allowed = ["content", "ad", "ditty"];
 
-const style = { marginTop: 4, marginRight: 4, padding: 4, cursor: "pointer" };
+const style = {
+  border: 0,
+  borderRadius: 4,
+  marginTop: 8,
+  marginRight: 4,
+  padding: "1rem",
+  cursor: "pointer",
+  width: "100%",
+};
+
+const adStyle = { ...style, backgroundColor: "red" };
+const contentStyle = { ...style, backgroundColor: "blue" };
+const dittyStyle = { ...style, backgroundColor: "green" };
 
 const ClassifyControls: React.FC<Props> = (props) => {
   const { onClassify } = props;
@@ -34,19 +40,19 @@ const ClassifyControls: React.FC<Props> = (props) => {
     [onClassify]
   );
   return (
-    <>
-      <button style={style} onClick={onClick}>
+    <div style={{ padding: "1rem" }}>
+      <button style={contentStyle} onClick={onClick}>
         CONTENT
       </button>
       <br />
-      <button style={style} onClick={onClick}>
+      <button style={adStyle} onClick={onClick}>
         AD
       </button>
       <br />
-      <button style={style} onClick={onClick}>
+      <button style={dittyStyle} onClick={onClick}>
         DITTY
       </button>
-    </>
+    </div>
   );
 };
 

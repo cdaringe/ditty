@@ -25,7 +25,7 @@ const getSyskMp3Filenames = async () => {
 export const getLearnDirnameOfMp3Filename = (f: string) => {
   const assetDirname = path.dirname(f);
   const base = path.basename(f, ".mp3");
-  return path.join(assetDirname, base, "learn");
+  return path.join(assetDirname, base, "learn-ws");
 };
 
 export const getSyskStream = (filename: string) => {

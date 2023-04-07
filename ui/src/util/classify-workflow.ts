@@ -52,27 +52,30 @@ export const useGetNextMel = ({
   return getNextMel;
 };
 
-export const parseSpectogramFilename = (f: string) => {
+export const parseSpectogramFilename = (basename: string) => {
   // melspectrogram_1099872_1117792_type_ttt.png
-  const [_melspec, start_raw, _ms, end_raw, __ms, _type, classification] = f
-    .replace(".png", "")
-    .split("_");
+  const [_melspec, start_raw, _ms, end_raw, __ms, _type, classification] =
+    basename.replace(".png", "").split("_");
   const [start_ms, end_ms] = [start_raw, end_raw].map((x) => {
     const i = parseInt(x, 10);
     if (Number.isInteger(i)) {
       return i;
     }
-    throw new Error(`${x} is not an int (${f})`);
+    throw new Error(`${x} is not an int (${basename})`);
   }) as [number, number];
   if (isClassification(classification)) {
     return {
       start_ms,
       end_ms,
+      duration_ms: end_ms - start_ms,
       classification,
+      basename,
     };
   }
   throw new Error(`unable to parse mel filename: ${f}`);
 };
+
+export type MelMeta = ReturnType<typeof parseSpectogramFilename>;
 
 export type AudioState = {
   audio: Audio;
