@@ -10,6 +10,9 @@ class StrategyWhiteSpaceSplitAsset(BaseAsset):
     def __init__(self, ctx: SyskCtx):
         super(StrategyWhiteSpaceSplitAsset, self).__init__(ctx, "ws")
 
+    def learning_artifacts_dirname(self) -> str:
+      return f'{super().learning_artifact_filename}/{self.name}'
+
     def split(self) -> Self:
         print(f'\tsplitting')
         if len(self.intervals) > 0:

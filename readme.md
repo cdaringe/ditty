@@ -9,3 +9,8 @@
 ...maybe?
 
 - `jupyter lab`
+
+## strategies
+
+- split full audio file into 5s segments
+- specto on each

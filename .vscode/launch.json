@@ -9,7 +9,11 @@
       "type": "python",
       "request": "launch",
       "module": "ditty.main",
-      "args": ["--mel", "--sysk-files"],
+      "args": [
+        // "--mel",
+        "--shortseg",
+        "--sysk-files"
+      ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true
